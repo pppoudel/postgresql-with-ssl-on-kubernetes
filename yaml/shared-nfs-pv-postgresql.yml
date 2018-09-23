@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: shared-nfs-pv-postgresql
+  namespace: shared-services
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+  - ReadWriteMany
+  nfs:
+    path: /var/postgresql/
+    server: 192.168.56.101
+  persistentVolumeReclaimPolicy: Retain

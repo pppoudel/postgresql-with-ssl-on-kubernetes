@@ -1,0 +1,89 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sysg-postgres-svc
+  namespace: shared-services
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5432
+      targetPort: 5432
+      protocol: TCP
+      name: tcp-5432
+  selector:
+      app: sysg-postgres-app
+---			
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: sysg-postgres-dpl
+  namespace: shared-services
+spec:
+  selector:
+    matchLabels:
+      app: sysg-postgres-app
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: sysg-postgres-app
+    spec:
+      serviceAccountName: shared-svc-accnt
+      securityContext:
+        runAsUser: 70 
+        supplementalGroups: [999,1000]
+        fsGroup: 70 
+      volumes:
+        - name: shared-nfs-pv-postgresql
+          persistentVolumeClaim: 
+            claimName: shared-nfs-pvc-postgresql
+        - name: secret-vol
+          secret:
+            secretName: postgresql-secrets 
+            defaultMode: 0640
+        - name: config-vol
+          configMap:
+            name: postgresql-config
+      containers:
+      - name: sysg-postgres-cnt
+        #image: osboxes/postgres:10.5-sysg
+        image: postgres:10.5-alpine
+        imagePullPolicy: IfNotPresent
+        args:
+          - -c
+          - hba_file=/etc/postgresql-config-vol/pg_hba.conf
+          - -c
+          - config_file=/etc/postgresql-config-vol/postgresql.conf
+        env:
+          - name: POSTGRES_USER
+            value: postgres
+          - name: PGUSER
+            value: postgres
+          - name: POSTGRES_DB
+            value: mmdb
+          - name: PGDATA
+            #value: /var/lib/postgresql/data
+            value: /var/lib/postgresql/data/pgdata
+          - name: POSTGRES_PASSWORD_FILE
+            value: /etc/postgresql-secrets-vol/postgresql-pwd.txt
+          #- name: POSTGRES_PASSWORD
+            #valueFrom:
+              #secretKeyRef:
+                #name: postgresql-secrets 
+                #key: postgresql-pwd.txt
+        ports:
+         - containerPort: 5432
+        volumeMounts:
+          - name: config-vol
+            mountPath: /etc/postgresql-config-vol
+          - mountPath: /var/lib/postgresql/data/pgdata
+            name: shared-nfs-pv-postgresql
+          - name: secret-vol
+            mountPath: /etc/postgresql-secrets-vol
+        #securityContext:
+          #runAsUser: 70
+          #allowPrivilegeEscalation: true
+      nodeSelector:
+        kubernetes.io/hostname: centosddcwrk01
+        #mohltc.env.name: icon_dev
